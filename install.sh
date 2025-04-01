@@ -2,7 +2,7 @@
 # Original Author: tteck, Co-Author: harvardthom, Source https://openwebui.com/
 # 🛠️ This piece of automation sorcery wouldn't be possible without their arcane knowledge.
 # ⚡ Full credits go to the mighty community-scripts crew – may your clusters never fail!
-# Version 0.2
+# Version 0.3
 
 #!/usr/bin/env bash
 set -e
@@ -30,8 +30,16 @@ echo "=== [3/9] Ollama installieren (0.0.0.0:11434) ==="
 curl -fsSLO https://ollama.com/download/ollama-linux-amd64.tgz
 tar -xzf ollama-linux-amd64.tgz
 rm -f ollama-linux-amd64.tgz
-install -m 755 ollama /usr/bin/ollama
-rm ollama
+
+# Datei finden und korrekt verschieben
+OLLAMA_BIN=$(find . -type f -name 'ollama' | head -n 1)
+if [[ -f "$OLLAMA_BIN" ]]; then
+  install -m 755 "$OLLAMA_BIN" /usr/bin/ollama
+else
+  echo "❌ ollama-Binärdatei nicht gefunden."
+  exit 1
+fi
+
 
 mkdir -p /root/.ollama
 cat <<EOF > /root/.ollama/config.toml
