@@ -2,7 +2,7 @@
 # Original Author: tteck, Co-Author: harvardthom, Source https://openwebui.com/
 # 🛠️ This piece of automation sorcery wouldn't be possible without their arcane knowledge.
 # ⚡ Full credits go to the mighty community-scripts crew – may your clusters never fail!
-# Version 0.4
+# Version 0.5
 
 #!/usr/bin/env bash
 set -e
@@ -11,7 +11,7 @@ APP="Open WebUI"
 INSTALL_DIR="/opt/open-webui"
 BACKUP_DIR="/opt/open-webui-backup"
 
-echo "=== [0/10] Alte Node-Repos & Node.js entfernen ==="
+echo "=== [0/10] NodeSource entfernen & node löschen (falls nötig) ==="
 rm -f /etc/apt/sources.list.d/nodesource*
 sed -i '/nodesource/d' /etc/apt/sources.list
 apt purge -y nodejs npm || true
@@ -20,18 +20,18 @@ apt update
 echo "=== [1/10] System vorbereiten ==="
 apt install -y curl wget git python3 python3-pip build-essential python3-venv jq
 
-echo "=== [2/10] Neueste Node.js-Version automatisch ermitteln & installieren ==="
-NODE_LATEST=$(curl -s https://nodejs.org/dist/index.json | jq -r '.[0].version')
+echo "=== [2/10] Neueste Node.js 22.x installieren ==="
+NODE_LATEST_22=$(curl -s https://nodejs.org/dist/index.json | jq -r '.[] | select(.version | test("^v22")) | .version' | head -n 1)
 ARCH="linux-x64"
 
 cd /usr/local
-curl -fsSLO "https://nodejs.org/dist/${NODE_LATEST}/node-${NODE_LATEST}-${ARCH}.tar.xz"
-tar -xf "node-${NODE_LATEST}-${ARCH}.tar.xz"
-rm -f "node-${NODE_LATEST}-${ARCH}.tar.xz"
+curl -fsSLO "https://nodejs.org/dist/${NODE_LATEST_22}/node-${NODE_LATEST_22}-${ARCH}.tar.xz"
+tar -xf "node-${NODE_LATEST_22}-${ARCH}.tar.xz"
+rm -f "node-${NODE_LATEST_22}-${ARCH}.tar.xz"
 
-ln -sf "/usr/local/node-${NODE_LATEST}-${ARCH}/bin/node" /usr/bin/node
-ln -sf "/usr/local/node-${NODE_LATEST}-${ARCH}/bin/npm" /usr/bin/npm
-ln -sf "/usr/local/node-${NODE_LATEST}-${ARCH}/bin/npx" /usr/bin/npx
+ln -sf "/usr/local/node-${NODE_LATEST_22}-${ARCH}/bin/node" /usr/bin/node
+ln -sf "/usr/local/node-${NODE_LATEST_22}-${ARCH}/bin/npm" /usr/bin/npm
+ln -sf "/usr/local/node-${NODE_LATEST_22}-${ARCH}/bin/npx" /usr/bin/npx
 
 echo "→ Node: $(node -v)"
 echo "→ npm:  $(npm -v)"
@@ -108,6 +108,6 @@ systemctl enable --now ollama
 systemctl enable --now open-webui
 
 echo ""
-echo "✅ Fertig! $APP & Ollama laufen."
+echo "✅ Fertig! $APP & Ollama sind installiert."
 echo "🌍 Webinterface:   http://$(hostname -I | awk '{print $1}'):8080"
 echo "🔌 Ollama API:     http://0.0.0.0:11434"
