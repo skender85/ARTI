@@ -10,10 +10,15 @@ set -e
 
 APP="Open WebUI"
 
+echo "=== Installing curl ==="
+apt update && apt install -y curl
+
+echo "=== Installing Node.js 18.x (LTS) ==="
+curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+apt install -y nodejs
+
 echo "=== Installing dependencies ==="
-apt update && apt install -y \
-  curl git nodejs npm python3 python3-pip \
-  build-essential python3-venv
+apt install -y git python3 python3-pip build-essential python3-venv
 
 echo "=== Installing Ollama ==="
 curl -fsSLO https://ollama.com/download/ollama-linux-amd64.tgz
@@ -27,7 +32,7 @@ cd /opt
 git clone https://github.com/open-webui/open-webui.git
 cd open-webui
 
-echo "=== Building frontend (this might take a while) ==="
+echo "=== Building frontend ==="
 npm install
 export NODE_OPTIONS="--max-old-space-size=3584"
 npm run build
