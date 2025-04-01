@@ -2,112 +2,90 @@
 # Original Author: tteck, Co-Author: harvardthom, Source https://openwebui.com/
 # 🛠️ This piece of automation sorcery wouldn't be possible without their arcane knowledge.
 # ⚡ Full credits go to the mighty community-scripts crew – may your clusters never fail!
-# Version 0.5
+# Version 0.6
 
 #!/usr/bin/env bash
 set -e
 
 APP="Open WebUI"
-INSTALL_DIR="/opt/open-webui"
-BACKUP_DIR="/opt/open-webui-backup"
+REPO="https://github.com/open-webui/open-webui"
+APP_DIR="/opt/open-webui"
+SERVICE_FILE="/etc/systemd/system/open-webui.service"
+PORT=8080
 
-echo "=== [0/10] NodeSource entfernen & node löschen (falls nötig) ==="
-rm -f /etc/apt/sources.list.d/nodesource*
-sed -i '/nodesource/d' /etc/apt/sources.list
-apt purge -y nodejs npm || true
-apt update
+echo -e "\n=== Installing dependencies ==="
+apt-get update
+apt-get install -y git curl python3 python3-pip python3-venv sudo build-essential
 
-echo "=== [1/10] System vorbereiten ==="
-apt install -y curl wget git python3 python3-pip build-essential python3-venv jq
-
-echo "=== [2/10] Neueste Node.js 22.x installieren ==="
-NODE_LATEST_22=$(curl -s https://nodejs.org/dist/index.json | jq -r '.[] | select(.version | test("^v22")) | .version' | head -n 1)
-ARCH="linux-x64"
-
-cd /usr/local
-curl -fsSLO "https://nodejs.org/dist/${NODE_LATEST_22}/node-${NODE_LATEST_22}-${ARCH}.tar.xz"
-tar -xf "node-${NODE_LATEST_22}-${ARCH}.tar.xz"
-rm -f "node-${NODE_LATEST_22}-${ARCH}.tar.xz"
-
-ln -sf "/usr/local/node-${NODE_LATEST_22}-${ARCH}/bin/node" /usr/bin/node
-ln -sf "/usr/local/node-${NODE_LATEST_22}-${ARCH}/bin/npm" /usr/bin/npm
-ln -sf "/usr/local/node-${NODE_LATEST_22}-${ARCH}/bin/npx" /usr/bin/npx
-
-echo "→ Node: $(node -v)"
-echo "→ npm:  $(npm -v)"
-
-echo "=== [3/10] Ollama installieren (0.0.0.0:11434) ==="
-curl -fsSLO https://ollama.com/download/ollama-linux-amd64.tgz
-tar -xzf ollama-linux-amd64.tgz
-rm -f ollama-linux-amd64.tgz
-OLLAMA_BIN=$(find . -type f -name 'ollama' | head -n 1)
-if [[ -f "$OLLAMA_BIN" ]]; then
-  install -m 755 "$OLLAMA_BIN" /usr/bin/ollama
-else
-  echo "❌ ollama-Binärdatei nicht gefunden."
-  exit 1
+if ! command -v node >/dev/null; then
+  echo -e "\n=== Installing latest Node.js (via nvm) ==="
+  export NVM_DIR="$HOME/.nvm"
+  mkdir -p "$NVM_DIR"
+  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+  source "$NVM_DIR/nvm.sh"
+  nvm install --lts
+  nvm use --lts
+  npm install -g npm
 fi
 
-mkdir -p /root/.ollama
-cat <<EOF > /root/.ollama/config.toml
-[api]
-address = "0.0.0.0:11434"
-EOF
+if ! command -v ollama >/dev/null; then
+  echo -e "\n=== Installing Ollama ==="
+  curl -fsSLO https://ollama.com/download/ollama-linux-amd64.tgz
+  tar -xzf ollama-linux-amd64.tgz
+  mv ollama /usr/bin/
+  chmod +x /usr/bin/ollama
+  rm -f ollama-linux-amd64.tgz
+fi
 
-echo "=== [4/10] Open WebUI klonen ==="
-git clone https://github.com/open-webui/open-webui.git "$INSTALL_DIR"
+echo -e "\n=== Cloning Open WebUI ==="
+git clone "$REPO" "$APP_DIR" || {
+  echo "Directory already exists. Pulling latest changes..."
+  cd "$APP_DIR"
+  git pull
+}
 
-echo "=== [5/10] Frontend installieren & bauen ==="
-cd "$INSTALL_DIR"
+echo -e "\n=== Building Frontend ==="
+cd "$APP_DIR"
 npm install
-export NODE_OPTIONS="--max-old-space-size=3584"
 npm run build
 
-echo "=== [6/10] Backend installieren ==="
-cd backend
+echo -e "\n=== Setting up Python backend ==="
+cd "$APP_DIR/backend"
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "=== [7/10] systemd-Service für Open WebUI ==="
-cat <<EOF > /etc/systemd/system/open-webui.service
+echo -e "\n=== Creating config file ==="
+cat <<EOF >"$APP_DIR/backend/data/config.json"
+{
+  "ollama_base_url": "http://0.0.0.0:11434"
+}
+EOF
+
+echo -e "\n=== Creating systemd service ==="
+cat <<EOF >"$SERVICE_FILE"
 [Unit]
 Description=Open WebUI
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$INSTALL_DIR/backend
-ExecStart=/usr/bin/python3 app.py
-Restart=on-failure
-User=root
-Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=${APP_DIR}/backend
+ExecStart=${APP_DIR}/backend/venv/bin/python3 app.py
+Restart=always
+RestartSec=3
+Environment=OLLAMA_HOST=0.0.0.0
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-echo "=== [8/10] systemd-Service für Ollama ==="
-cat <<EOF > /etc/systemd/system/ollama.service
-[Unit]
-Description=Ollama LLM API
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/ollama serve
-Restart=on-failure
-User=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-echo "=== [9/10] Services aktivieren & starten ==="
+echo -e "\n=== Enabling & starting service ==="
 systemctl daemon-reexec
 systemctl daemon-reload
-systemctl enable --now ollama
-systemctl enable --now open-webui
+systemctl enable open-webui.service
+systemctl restart open-webui.service
 
-echo ""
-echo "✅ Fertig! $APP & Ollama sind installiert."
-echo "🌍 Webinterface:   http://$(hostname -I | awk '{print $1}'):8080"
-echo "🔌 Ollama API:     http://0.0.0.0:11434"
+echo -e "\n✅ Installation abgeschlossen!"
+echo -e "➡️ Zugriff unter: http://$(hostname -I | awk '{print $1}'):${PORT}"
