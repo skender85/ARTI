@@ -11,7 +11,7 @@ set -e
 APP="Open WebUI"
 
 echo "=== Installing curl ==="
-apt update && apt install -y curl
+apt update && apt upgrade -y && apt install curl -y
 
 echo "=== Installing Node.js 18.x (LTS) ==="
 curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
