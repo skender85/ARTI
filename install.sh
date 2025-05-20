@@ -1,8 +1,7 @@
 # 🧙‍♂️ All hail the script wizards over at https://github.com/community-scripts/ProxmoxVE
 # Original Author: tteck, Co-Author: harvardthom, Source https://openwebui.com/
 # 🛠️ This piece of automation sorcery wouldn't be possible without their arcane knowledge.
-# ⚡ Full credits go to the mighty community-scripts crew – may your clusters never fail!
-# Version 0.9
+# Version 1.0
 
 #!/usr/bin/env bash
 
